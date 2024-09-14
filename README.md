@@ -17,8 +17,6 @@ You can view the live demo of the visualization here:
   - [Visualization Steps](#visualization-steps)
 - [Technologies Used](#technologies-used)
 - [Usage](#usage)
-- [Screenshots](#screenshots)
-- [Contributing](#contributing)
 - [License](#license)
 - [Acknowledgments](#acknowledgments)
 
