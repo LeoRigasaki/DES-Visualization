@@ -18,6 +18,32 @@
             text-align: center;
             color: #2c3e50;
         }
+        #controls {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #controls input {
+            padding: 8px;
+            margin: 5px 0;
+            width: 300px;
+            font-size: 16px;
+        }
+        #controls button {
+            padding: 10px 20px;
+            margin: 10px 5px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        #controls button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
         #explanationBox {
             width: 100%;
             padding: 15px;
@@ -71,17 +97,37 @@
         .step-title {
             color: #2c3e50;
         }
+        #navigationButtons {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+        }
     </style>
 </head>
 <body>
     <h1>DES Encryption Detailed Visualization</h1>
-    <p>Press the "Enter" key to progress through each detailed step of the DES encryption process.</p>
+    <div id="controls">
+        <label for="plaintextInput"><strong>Plaintext (Hexadecimal):</strong></label>
+        <input type="text" id="plaintextInput" placeholder="e.g., 0123456789ABCDEF" maxlength="16">
+        
+        <label for="keyInput"><strong>Key (Hexadecimal):</strong></label>
+        <input type="text" id="keyInput" placeholder="e.g., 133457799BBCDFF1" maxlength="16">
+        
+        <button id="startButton">Start Visualization</button>
+    </div>
+    
     <div class="diagram-container">
         <div class="mermaid" id="diagram">
             <!-- The diagram will be dynamically updated -->
         </div>
     </div>
-    <div id="explanationBox"></div>
+    <div id="explanationBox" style="display:none;"></div>
+    
+    <div id="navigationButtons" style="display:none;">
+        <button id="prevButton">Previous</button>
+        <button id="nextButton">Next</button>
+    </div>
+    
     <script>
         // Initialize Mermaid with custom configuration
         mermaid.initialize({
@@ -99,20 +145,52 @@
             }
         });
 
-        // Plaintext and key (hexadecimal)
-        const plaintextHex = "0123456789ABCDEF";
-        const keyHex = "133457799BBCDFF1";
+        // Default plaintext and key (hexadecimal)
+        const defaultPlaintextHex = "0123456789ABCDEF";
+        const defaultKeyHex = "133457799BBCDFF1";
 
-        // Convert hex to binary array
+        // Elements
+        const startButton = document.getElementById('startButton');
+        const plaintextInput = document.getElementById('plaintextInput');
+        const keyInput = document.getElementById('keyInput');
+        const prevButton = document.getElementById('prevButton');
+        const nextButton = document.getElementById('nextButton');
+        const navigationButtons = document.getElementById('navigationButtons');
+        const explanationBox = document.getElementById('explanationBox');
+
+        // Variables to store user inputs or defaults
+        let plaintextHex = defaultPlaintextHex;
+        let keyHex = defaultKeyHex;
+
+        // Steps data
+        let steps = [];
+        let currentStep = 0;
+
+        // Placeholder variables to store intermediate results
+        let permutedPlaintext, L0, R0, permutedKey, C0, D0, roundKeys = [], finalCiphertext;
+        let L = [], R = [];
+
+        // Function to validate hexadecimal input
+        function isValidHex(hex) {
+            return /^[0-9A-Fa-f]+$/.test(hex);
+        }
+
+        // Function to convert hex to binary array
         function hexToBinaryArray(hex) {
             return hex.split('').map(char => {
                 return parseInt(char, 16).toString(2).padStart(4, '0');
             }).join('').split('').map(bit => parseInt(bit));
         }
 
-        // Initial plaintext and key in binary
-        const plaintextBinary = hexToBinaryArray(plaintextHex);
-        const keyBinary = hexToBinaryArray(keyHex);
+        // Function to convert binary array to hexadecimal string
+        function binaryToHex(binaryArray) {
+            let hex = '';
+            for (let i = 0; i < binaryArray.length; i += 4) {
+                const nibble = binaryArray.slice(i, i + 4).join('');
+                hex += parseInt(nibble, 2).toString(16).toUpperCase();
+            }
+            return hex;
+        }
 
         // Permutation and shift tables
         const INITIAL_PERMUTATION = [
@@ -160,64 +238,6 @@
         ];
 
         const SHIFT_SCHEDULE = [1, 1, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 1];
-
-        // Steps data
-        const steps = [
-            { id: 'A', title: 'Original Plaintext', content: `The plaintext message to be encrypted.<br><br>Hexadecimal: <span class="hexadecimal">${plaintextHex}</span><br>Binary: <span class="binary">${plaintextBinary.join('')}</span>` },
-            { id: 'B', title: 'Initial Permutation (IP)', content: 'The plaintext bits are rearranged according to the initial permutation table to begin the encryption process.' },
-            { id: 'C', title: 'Split into L0 and R0', content: 'The permuted block is split into two 32-bit halves, L0 and R0, to initiate the Feistel rounds.' },
-            { id: 'D', title: 'Original Key', content: `The key used for encryption.<br><br>Hexadecimal: <span class="hexadecimal">${keyHex}</span><br>Binary: <span class="binary">${keyBinary.join('')}</span>` },
-            { id: 'E', title: 'Parity Drop (PC-1)', content: 'The key is permuted using PC-1, reducing it from 64 to 56 bits by discarding parity bits.' },
-            { id: 'F', title: 'Split into C0 and D0', content: 'The 56-bit key is split into two 28-bit halves for key schedule generation.' },
-            { id: 'G', title: 'Key Schedule Generation', content: 'Generating 16 round keys through left circular shifts and permuted choices (PC-2).' },
-            { id: 'H', title: 'Feistel Rounds Overview', content: 'An overview of the 16 Feistel rounds in the DES encryption process.' },
-            // Steps for each Feistel round
-            ...Array.from({ length: 16 }, (_, i) => ({
-                id: `Round${i + 1}`,
-                title: `Feistel Round ${i + 1}`,
-                content: `Details of Feistel Round ${i + 1}, including expansion, key mixing, substitution, and permutation.`
-            })),
-            { id: 'I', title: 'Swap Halves', content: 'After 16 rounds, the left and right halves are swapped before the final permutation.' },
-            { id: 'J', title: 'Inverse Initial Permutation (IP⁻¹)', content: 'The final permutation is applied to obtain the ciphertext.' },
-            { id: 'K', title: 'Final Ciphertext', content: `The encrypted message.<br><br>Binary: <span class="binary" id="ciphertextBinary"></span><br>Hexadecimal: <span class="hexadecimal" id="ciphertextHex"></span>` },
-        ];
-
-        let currentStep = 0;
-
-        // Placeholder variables to store intermediate results
-        let permutedPlaintext, L0, R0, permutedKey, C0, D0, roundKeys = [], finalCiphertext;
-        let L = [], R = [];
-
-        // Function to perform permutations
-        function permute(inputBits, table) {
-            return table.map(index => inputBits[index - 1]);
-        }
-
-        // Left circular shift
-        function leftShift(bits, shifts) {
-            return bits.slice(shifts).concat(bits.slice(0, shifts));
-        }
-
-        // XOR two bit arrays
-        function xor(a, b) {
-            return a.map((bit, index) => bit ^ b[index]);
-        }
-
-        // Function to generate round keys
-        function generateRoundKeys(C0, D0) {
-            const roundKeys = [];
-            let C = C0.slice();
-            let D = D0.slice();
-
-            for (let i = 0; i < 16; i++) {
-                C = leftShift(C, SHIFT_SCHEDULE[i]);
-                D = leftShift(D, SHIFT_SCHEDULE[i]);
-                const combined = C.concat(D);
-                const roundKey = permute(combined, PC2);
-                roundKeys.push({ round: i + 1, key: roundKey });
-            }
-            return roundKeys;
-        }
 
         // Feistel function components
         const EXPANSION_TABLE = [
@@ -297,6 +317,37 @@
             19, 13, 30, 6, 22, 11, 4, 25
         ];
 
+        // Function to perform permutations
+        function permute(inputBits, table) {
+            return table.map(index => inputBits[index - 1]);
+        }
+
+        // Left circular shift
+        function leftShift(bits, shifts) {
+            return bits.slice(shifts).concat(bits.slice(0, shifts));
+        }
+
+        // XOR two bit arrays
+        function xor(a, b) {
+            return a.map((bit, index) => bit ^ b[index]);
+        }
+
+        // Function to generate round keys
+        function generateRoundKeys(C0, D0) {
+            const roundKeys = [];
+            let C = C0.slice();
+            let D = D0.slice();
+
+            for (let i = 0; i < 16; i++) {
+                C = leftShift(C, SHIFT_SCHEDULE[i]);
+                D = leftShift(D, SHIFT_SCHEDULE[i]);
+                const combined = C.concat(D);
+                const roundKey = permute(combined, PC2);
+                roundKeys.push({ round: i + 1, key: roundKey });
+            }
+            return roundKeys;
+        }
+
         // Function to perform the Feistel function
         function feistelFunction(R, K) {
             // Expansion
@@ -351,16 +402,21 @@
 
             // Show explanation
             showExplanation(steps[currentStep].id);
+
+            // Update navigation buttons' state
+            updateNavigationButtons();
         }
 
         // Function to show explanation
         function showExplanation(id) {
-            const explanationBox = document.getElementById('explanationBox');
             const step = steps.find(s => s.id === id);
             explanationBox.innerHTML = `<h2 class="step-title">${step.title}</h2><p>${step.content}</p>`;
 
             // Add additional data for certain steps
             switch (id) {
+                case 'A':
+                    explanationBox.innerHTML += `<p>Plaintext Binary: <span class="binary">${hexToBinaryArray(plaintextHex).join('')}</span></p>`;
+                    break;
                 case 'B':
                     permutedPlaintext = permute(plaintextBinary, INITIAL_PERMUTATION);
                     explanationBox.innerHTML += `<p>After Initial Permutation:<br>Binary: <span class="binary">${permutedPlaintext.join('')}</span></p>`;
@@ -370,6 +426,9 @@
                     L0 = permutedPlaintext.slice(0, 32);
                     R0 = permutedPlaintext.slice(32);
                     explanationBox.innerHTML += `<p>L0:<br><span class="binary">${L0.join('')}</span></p><p>R0:<br><span class="binary">${R0.join('')}</span></p>`;
+                    break;
+                case 'D':
+                    explanationBox.innerHTML += `<p>Key Binary: <span class="binary">${keyBinary.join('')}</span></p>`;
                     break;
                 case 'E':
                     permutedKey = permute(keyBinary, PC1);
@@ -390,30 +449,28 @@
                     explanationBox.innerHTML += generatePermutationTable(PC2, 'PC-2 Table');
                     break;
                 case 'H':
-                    explanationBox.innerHTML += `<p>The Feistel rounds involve expansion, key mixing, substitution via S-boxes, and permutation. Press "Enter" to step through each round.</p>`;
+                    explanationBox.innerHTML += `<p>The Feistel rounds involve expansion, key mixing, substitution via S-boxes, and permutation. Use the "Previous" and "Next" buttons to navigate through each round.</p>`;
                     // Initialize L and R arrays
                     L = [L0];
                     R = [R0];
                     break;
-                case id.match(/^Round\d+$/)?.input:
-                    const roundNumber = parseInt(id.replace('Round', ''));
-                    performFeistelRound(roundNumber);
-                    break;
-                case 'I':
-                    explanationBox.innerHTML += `<p>Before Swap:<br>L16: <span class="binary">${L[16].join('')}</span><br>R16: <span class="binary">${R[16].join('')}</span></p>`;
-                    explanationBox.innerHTML += `<p>After Swap:<br>Left: <span class="binary">${R[16].join('')}</span><br>Right: <span class="binary">${L[16].join('')}</span></p>`;
-                    break;
-                case 'J':
-                    const preOutput = R[16].concat(L[16]);
-                    finalCiphertext = permute(preOutput, INVERSE_INITIAL_PERMUTATION);
-                    explanationBox.innerHTML += `<p>After Inverse Initial Permutation:<br>Binary: <span class="binary">${finalCiphertext.join('')}</span></p>`;
-                    explanationBox.innerHTML += generatePermutationTable(INVERSE_INITIAL_PERMUTATION, 'Inverse Initial Permutation Table');
-                    break;
-                case 'K':
-                    const ciphertextBinaryStr = finalCiphertext.join('');
-                    const ciphertextHex = binaryToHex(finalCiphertext);
-                    document.getElementById('ciphertextBinary').innerText = ciphertextBinaryStr;
-                    document.getElementById('ciphertextHex').innerText = ciphertextHex;
+                default:
+                    if (id.startsWith('Round')) {
+                        const roundNumber = parseInt(id.replace('Round', ''));
+                        performFeistelRound(roundNumber);
+                    } else if (id === 'I') {
+                        explanationBox.innerHTML += `<p>Before Swap:<br>L16: <span class="binary">${L[16].join('')}</span><br>R16: <span class="binary">${R[16].join('')}</span></p>`;
+                        explanationBox.innerHTML += `<p>After Swap:<br>Left: <span class="binary">${R[16].join('')}</span><br>Right: <span class="binary">${L[16].join('')}</span></p>`;
+                    } else if (id === 'J') {
+                        const preOutput = R[16].concat(L[16]);
+                        finalCiphertext = permute(preOutput, INVERSE_INITIAL_PERMUTATION);
+                        explanationBox.innerHTML += `<p>After Inverse Initial Permutation:<br>Binary: <span class="binary">${finalCiphertext.join('')}</span></p>`;
+                        explanationBox.innerHTML += generatePermutationTable(INVERSE_INITIAL_PERMUTATION, 'Inverse Initial Permutation Table');
+                    } else if (id === 'K') {
+                        const ciphertextBinaryStr = finalCiphertext.join('');
+                        const ciphertextHex = binaryToHex(finalCiphertext);
+                        explanationBox.innerHTML += `<p>Final Ciphertext:</p><p>Binary: <span class="binary" id="ciphertextBinary">${ciphertextBinaryStr}</span><br>Hexadecimal: <span class="hexadecimal" id="ciphertextHex">${ciphertextHex}</span></p>`;
+                    }
                     break;
             }
 
@@ -422,7 +479,6 @@
 
         // Function to perform Feistel round
         function performFeistelRound(roundNumber) {
-            const explanationBox = document.getElementById('explanationBox');
             const rk = roundKeys[roundNumber - 1];
             const prevL = L[roundNumber - 1];
             const prevR = R[roundNumber - 1];
@@ -480,33 +536,116 @@
             return html;
         }
 
-        // Convert binary array to hexadecimal string
-        function binaryToHex(binaryArray) {
-            let hex = '';
-            for (let i = 0; i < binaryArray.length; i += 4) {
-                const nibble = binaryArray.slice(i, i + 4).join('');
-                hex += parseInt(nibble, 2).toString(16).toUpperCase();
-            }
-            return hex;
+        // Function to initialize steps
+        function initializeSteps() {
+            steps = [
+                { id: 'A', title: 'Original Plaintext', content: `The plaintext message to be encrypted.<br><br>Hexadecimal: <span class="hexadecimal">${plaintextHex}</span><br>Binary: <span class="binary">${plaintextBinary.join('')}</span>` },
+                { id: 'B', title: 'Initial Permutation (IP)', content: 'The plaintext bits are rearranged according to the initial permutation table to begin the encryption process.' },
+                { id: 'C', title: 'Split into L0 and R0', content: 'The permuted block is split into two 32-bit halves, L0 and R0, to initiate the Feistel rounds.' },
+                { id: 'D', title: 'Original Key', content: `The key used for encryption.<br><br>Hexadecimal: <span class="hexadecimal">${keyHex}</span><br>Binary: <span class="binary">${keyBinary.join('')}</span>` },
+                { id: 'E', title: 'Parity Drop (PC-1)', content: 'The key is permuted using PC-1, reducing it from 64 to 56 bits by discarding parity bits.' },
+                { id: 'F', title: 'Split into C0 and D0', content: 'The 56-bit key is split into two 28-bit halves for key schedule generation.' },
+                { id: 'G', title: 'Key Schedule Generation', content: 'Generating 16 round keys through left circular shifts and permuted choices (PC-2).' },
+                { id: 'H', title: 'Feistel Rounds Overview', content: 'An overview of the 16 Feistel rounds in the DES encryption process.' },
+                // Steps for each Feistel round
+                ...Array.from({ length: 16 }, (_, i) => ({
+                    id: `Round${i + 1}`,
+                    title: `Feistel Round ${i + 1}`,
+                    content: `Details of Feistel Round ${i + 1}, including expansion, key mixing, substitution, and permutation.`
+                })),
+                { id: 'I', title: 'Swap Halves', content: 'After 16 rounds, the left and right halves are swapped before the final permutation.' },
+                { id: 'J', title: 'Inverse Initial Permutation (IP⁻¹)', content: 'The final permutation is applied to obtain the ciphertext.' },
+                { id: 'K', title: 'Final Ciphertext', content: `The encrypted message.<br><br>Binary: <span class="binary" id="ciphertextBinary"></span><br>Hexadecimal: <span class="hexadecimal" id="ciphertextHex"></span>` },
+            ];
         }
 
-        // Event listener for Enter key
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Enter') {
-                currentStep++;
-                if (currentStep >= steps.length) {
-                    currentStep = 0; // Reset to first step
-                    // Reset variables
-                    L = [];
-                    R = [];
-                    roundKeys = [];
-                }
+        // Function to update navigation buttons' state
+        function updateNavigationButtons() {
+            prevButton.disabled = currentStep === 0;
+            nextButton.disabled = currentStep === steps.length - 1;
+        }
+
+        // Function to reset visualization
+        function resetVisualization() {
+            currentStep = 0;
+            permutedPlaintext = null;
+            L0 = null;
+            R0 = null;
+            permutedKey = null;
+            C0 = null;
+            D0 = null;
+            roundKeys = [];
+            finalCiphertext = null;
+            L = [];
+            R = [];
+            explanationBox.innerHTML = '';
+            explanationBox.style.display = 'none';
+            navigationButtons.style.display = 'none';
+        }
+
+        // Event listener for Start Visualization button
+        startButton.addEventListener('click', function() {
+            // Get user inputs
+            const userPlaintext = plaintextInput.value.trim();
+            const userKey = keyInput.value.trim();
+
+            // Validate inputs
+            if (userPlaintext && !isValidHex(userPlaintext)) {
+                alert('Invalid Plaintext. Please enter a valid hexadecimal string.');
+                return;
+            }
+            if (userKey && !isValidHex(userKey)) {
+                alert('Invalid Key. Please enter a valid hexadecimal string.');
+                return;
+            }
+
+            // Set plaintext and key
+            plaintextHex = userPlaintext || defaultPlaintextHex;
+            keyHex = userKey || defaultKeyHex;
+
+            // Ensure plaintext and key are 16 hexadecimal characters (64 bits)
+            if (plaintextHex.length !== 16) {
+                alert('Plaintext must be exactly 16 hexadecimal characters (64 bits).');
+                return;
+            }
+            if (keyHex.length !== 16) {
+                alert('Key must be exactly 16 hexadecimal characters (64 bits).');
+                return;
+            }
+
+            // Convert to binary arrays
+            plaintextBinary = hexToBinaryArray(plaintextHex);
+            keyBinary = hexToBinaryArray(keyHex);
+
+            // Initialize steps
+            initializeSteps();
+
+            // Generate diagram
+            generateDiagram();
+
+            // Show navigation buttons
+            navigationButtons.style.display = 'flex';
+        });
+
+        // Event listeners for Previous and Next buttons
+        prevButton.addEventListener('click', function() {
+            if (currentStep > 0) {
+                currentStep--;
                 generateDiagram();
             }
         });
 
-        // Initial diagram generation
-        generateDiagram();
+        nextButton.addEventListener('click', function() {
+            if (currentStep < steps.length - 1) {
+                currentStep++;
+                generateDiagram();
+            }
+        });
+
+        // Initialize visualization with default values on page load
+        window.onload = function() {
+            resetVisualization();
+        };
     </script>
 </body>
 </html>
