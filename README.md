@@ -6,7 +6,7 @@ This repository contains a detailed, step-by-step visualization of the **Data En
 
 You can view the live demo of the visualization here:
 
-[DES Encryption Visualization](https://66e55e39888fbf0008f48101--des-visualization.netlify.app/)
+[DES Encryption Visualization](https://66e561bdd21c940008e93bb5--des-visualization.netlify.app/)
 **You can just run it via your HEXA input or you can run it without your input and the code will run an example input and key.**
 ## Table of Contents
 
@@ -74,7 +74,7 @@ At each step, the visualization provides:
 
 To use the visualization:
 
-1. **Access the Live Demo**: Visit the [DES Encryption Visualization](https://66e55e39888fbf0008f48101--des-visualization.netlify.app/) page.
+1. **Access the Live Demo**: Visit the [DES Encryption Visualization](https://66e561bdd21c940008e93bb5--des-visualization.netlify.app/) page.
 
 2. **Interact with the Visualization**:
 
